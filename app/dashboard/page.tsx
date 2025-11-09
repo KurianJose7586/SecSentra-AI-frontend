@@ -71,7 +71,7 @@ export default function Dashboard() {
       // Replace "YOUR_HF_SPACE_URL.hf.space" with your actual Hugging Face URL
       // and make sure it includes the "/debug/run_tool" path.
       //
-      const response = await fetch('https://kurianjose-secentra-ai-backend.hf.space/debug/run_tool', {
+      const response = await fetch('https://joserman-secentra-ai-backend.hf.space/debug/run_tool', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
