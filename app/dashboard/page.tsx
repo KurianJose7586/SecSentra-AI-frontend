@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { FileText, Code, Settings, Search, Activity, CheckCircle, AlertTriangle, Shield, User, XCircle, ChevronRight } from 'lucide-react';
-// MODIFICATION: Import the new component
+// Make sure this path is correct for your project structure
 import ScanResultDisplay from '../../components/ScanResultDisplay'; 
 
 const mockJobs = [
@@ -23,7 +23,7 @@ export default function Dashboard() {
   const [activeScan, setActiveScan] = useState<string | null>(null);
   const [scanInput, setScanInput] = useState('');
   const [isScanning, setIsScanning] = useState(false);
-  const [scanResult, setScanResult] = useState<any>(null); // No change here
+  const [scanResult, setScanResult] = useState<any>(null); 
 
   const tools = [
     { 
@@ -65,7 +65,11 @@ export default function Dashboard() {
     const toolName = toolIdToBackendName[activeScan as keyof typeof toolIdToBackendName];
 
     try {
-      const response = await fetch('https://joserman-secentra-ai-backend.hf.space', {
+      //
+      // --- THIS IS THE CRITICAL LINE ---
+      // Make sure this URL is correct and includes '/debug/run_tool'
+      //
+      const response = await fetch('https://YOUR_HUGGING_FACE_URL.hf.space/debug/run_tool', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -84,11 +88,11 @@ export default function Dashboard() {
       const result = await response.json();
       
       console.log('Scan Result:', result);
-      setScanResult(result); // Store the full result {success: ..., result: ...}
+      setScanResult(result); 
 
     } catch (error: any) {
       console.error('Scan failed:', error);
-      setScanResult({ error: error.message }); // Store error in the same state
+      setScanResult({ error: error.message }); 
     } finally {
       setIsScanning(false);
     }
@@ -271,7 +275,6 @@ export default function Dashboard() {
                 )}
               </button>
 
-              {/* MODIFICATION: Replaced the <pre> tag with our new component */}
               <ScanResultDisplay scanResult={scanResult} />
               
             </div>
