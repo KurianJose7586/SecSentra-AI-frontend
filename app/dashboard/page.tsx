@@ -3,7 +3,8 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { FileText, Code, Settings, Search, Activity, CheckCircle, AlertTriangle, Shield, User, XCircle, ChevronRight } from 'lucide-react';
-// Make sure this path is correct for your project structure
+// MODIFICATION: Make sure this path is correct. If you don't have this file, let me know.
+// Assuming you have this component from our previous chat.
 import ScanResultDisplay from '../../components/ScanResultDisplay'; 
 
 const mockJobs = [
@@ -66,10 +67,11 @@ export default function Dashboard() {
 
     try {
       //
-      // --- THIS IS THE CRITICAL LINE ---
-      // Make sure this URL is correct and includes '/debug/run_tool'
+      // --- MODIFICATION: THIS IS THE FIX ---
+      // Replace "YOUR_HF_SPACE_URL.hf.space" with your actual Hugging Face URL
+      // and make sure it includes the "/debug/run_tool" path.
       //
-      const response = await fetch('https://YOUR_HUGGING_FACE_URL.hf.space/debug/run_tool', {
+      const response = await fetch('https://kurianjose-secentra-ai-backend.hf.space/debug/run_tool', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
