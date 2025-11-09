@@ -19,6 +19,7 @@ export default function LandingPage() {
     let particles: Particle[] = [];
 
     const resizeCanvas = () => {
+      if (!canvas) return; // Add a check here
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
     };
@@ -35,8 +36,8 @@ export default function LandingPage() {
       opacity: number;
 
       constructor() {
-        this.x = Math.random() * canvas.width;
-        this.y = Math.random() * canvas.height;
+        this.x = Math.random() * canvas!.width;
+        this.y = Math.random() * canvas!.height;
         this.size = Math.random() * 2 + 0.5;
         this.speedX = Math.random() * 0.5 - 0.25;
         this.speedY = Math.random() * 0.5 - 0.25;
