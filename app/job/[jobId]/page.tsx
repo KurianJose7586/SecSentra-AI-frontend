@@ -274,9 +274,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     justifyContent: 'center',
   },
   logoText: {
-    fontSize: '28px',
-    fontFamily: '"Fredericka the Great", serif',
-    fontWeight: 'bold'
+    fontSize: '24px',
+    fontFamily: '"Dela Gothic One", cursive',
   },
   logoGradient: {
     background: 'linear-gradient(135deg, #5C00CC, #6A00EB)',
@@ -311,7 +310,8 @@ const styles: { [key: string]: React.CSSProperties } = {
   title: {
     fontSize: '60px',
     fontFamily:'"Fredericka the Great", serif',
-    fontweight: 'bold',
+    // MODIFICATION: Corrected the typo 'fontweight' to 'fontWeight'
+    fontWeight: 'bold',
     color: 'white',
     marginBottom: '12px',
   },
