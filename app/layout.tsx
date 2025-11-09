@@ -1,43 +1,68 @@
 "use client";
 
-import { useAuth } from '../contexts/AuthContext';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { AuthProvider } from '../contexts/AuthContext';
+import '../styles/globals.css';
 
-export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push('/');
-    }
-  }, [user, loading, router]);
-
-  if (loading) {
-    return (
-      <div style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'linear-gradient(135deg, #0C0712 0%, #201A26 50%, #0C0712 100%)',
-      }}>
-        <div style={{
-          width: '64px',
-          height: '64px',
-          border: '4px solid rgba(106, 0, 235, 0.3)',
-          borderTopColor: '#6A00EB',
-          borderRadius: '50%',
-          animation: 'spin 1s linear infinite',
-        }} />
-      </div>
-    );
-  }
-
-  if (!user) {
-    return null;
-  }
-
-  return <>{children}</>;
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en">
+      <head>
+        <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>SentraSec AI - Cybersecurity Platform</title>
+      </head>
+      <body>
+        <AuthProvider>
+          {children}
+        </AuthProvider>
+        <style jsx global>{`
+          @keyframes spin {
+            to {
+              transform: rotate(360deg);
+            }
+          }
+          
+          @keyframes float {
+            0%, 100% {
+              transform: translateY(0px);
+            }
+            50% {
+              transform: translateY(-20px);
+            }
+          }
+          
+          @keyframes float-3d {
+            0%, 100% {
+              transform: translate3d(0, 0, 0);
+            }
+            50% {
+              transform: translate3d(20px, -20px, 0);
+            }
+          }
+          
+          @keyframes fade-in {
+            from {
+              opacity: 0;
+            }
+            to {
+              opacity: 1;
+            }
+          }
+          
+          @keyframes pulse {
+            0%, 100% {
+              opacity: 0.1;
+            }
+            50% {
+              opacity: 0.2;
+            }
+          }
+        `}</style>
+      </body>
+    </html>
+  );
 }
