@@ -1,24 +1,17 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { FileText, Code, Settings, Search, Activity, CheckCircle, AlertTriangle, Shield, User, XCircle, ChevronRight, Upload, LogOut } from 'lucide-react';
-import ProtectedRoute from '../../components/ProtectedRoute';
-import { useAuth } from '../../contexts/AuthContext';
-import { collection, query, where, orderBy, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../src/lib/firebase';
-import { supabase } from '../../src/lib/supabase';
+import { FileText, Code, Settings, Search, Activity, CheckCircle, AlertTriangle, Shield, User, XCircle, ChevronRight } from 'lucide-react';
+// MODIFICATION: Import the new component
+import ScanResultDisplay from '../../components/ScanResultDisplay'; 
 
-interface Job {
-  id: string;
-  type: string;
-  status: string;
-  confidence: number;
-  timestamp: string;
-  fileName?: string;
-}
+const mockJobs = [
+  { id: '1', type: 'text', status: 'safe', confidence: 95, timestamp: '2 hours ago' },
+  { id: '2', type: 'code', status: 'suspicious', confidence: 73, timestamp: '5 hours ago' }
+];
 
-const toolIdToBackendName: { [key: string]: string } = {
+const toolIdToBackendName = {
   text: 'phishing',
   code: 'vuln',
   config: 'config',
@@ -26,23 +19,11 @@ const toolIdToBackendName: { [key: string]: string } = {
 };
 
 export default function Dashboard() {
-  return (
-    <ProtectedRoute>
-      <DashboardContent />
-    </ProtectedRoute>
-  );
-}
-
-function DashboardContent() {
   const router = useRouter();
-  const { user, signOut: firebaseSignOut } = useAuth();
   const [activeScan, setActiveScan] = useState<string | null>(null);
   const [scanInput, setScanInput] = useState('');
   const [isScanning, setIsScanning] = useState(false);
-  const [scanResult, setScanResult] = useState<any>(null);
-  const [recentJobs, setRecentJobs] = useState<Job[]>([]);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [scanResult, setScanResult] = useState<any>(null); // No change here
 
   const tools = [
     { 
@@ -75,107 +56,16 @@ function DashboardContent() {
     }
   ];
 
-  useEffect(() => {
-    if (user) {
-      loadRecentJobs();
-    }
-  }, [user]);
-
-  const loadRecentJobs = async () => {
-    if (!user) return;
-    
-    try {
-      const jobsRef = collection(db, 'jobs');
-      const q = query(
-        jobsRef,
-        where('userId', '==', user.uid),
-        orderBy('timestamp', 'desc')
-      );
-      
-      const querySnapshot = await getDocs(q);
-      const jobs: Job[] = [];
-      
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        jobs.push({
-          id: doc.id,
-          type: data.type || 'unknown',
-          status: data.status || 'completed',
-          confidence: data.confidence || 0,
-          timestamp: data.timestamp ? new Date(data.timestamp).toRelativeTimeString() : 'Just now',
-          fileName: data.fileName,
-        });
-      });
-      
-      setRecentJobs(jobs.slice(0, 5));
-    } catch (error) {
-      console.error('Error loading jobs:', error);
-    }
-  };
-
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setSelectedFile(file);
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setScanInput(event.target?.result as string || '');
-      };
-      reader.readAsText(file);
-    }
-  };
-
-  const uploadToSupabase = async (file: File): Promise<string | null> => {
-    if (!user) return null;
-
-    const timestamp = Date.now();
-    const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const filePath = `uploads/${user.uid}/${timestamp}_${sanitizedName}`;
-
-    try {
-      const { data, error } = await supabase.storage
-        .from('security-files')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false,
-        });
-
-      if (error) {
-        console.error('Upload error:', error);
-        return null;
-      }
-
-      return data.path;
-    } catch (error) {
-      console.error('Upload error:', error);
-      return null;
-    }
-  };
-
   const handleScan = async () => {
-    if (!activeScan || !scanInput || !user) return;
+    if (!activeScan || !scanInput) return;
 
     setIsScanning(true);
-    setScanResult(null);
+    setScanResult(null); 
 
-    let uploadedPath: string | null = null;
-    
-    if (selectedFile) {
-      setUploading(true);
-      uploadedPath = await uploadToSupabase(selectedFile);
-      setUploading(false);
-      
-      if (!uploadedPath) {
-        alert('File upload failed');
-        setIsScanning(false);
-        return;
-      }
-    }
-
-    const toolName = toolIdToBackendName[activeScan];
+    const toolName = toolIdToBackendName[activeScan as keyof typeof toolIdToBackendName];
 
     try {
-      const response = await fetch('http://localhost:8000/debug/run_tool', {
+      const response = await fetch('https://joserman-secentra-ai-backend.hf.space', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -187,29 +77,18 @@ function DashboardContent() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({ error: `Server error: ${response.statusText}` }));
         throw new Error(errorData.error || `Error: ${response.statusText}`);
       }
 
       const result = await response.json();
-      setScanResult(result);
-
-      await addDoc(collection(db, 'jobs'), {
-        userId: user.uid,
-        type: activeScan,
-        status: result.classification || 'completed',
-        confidence: result.confidence || 0,
-        timestamp: serverTimestamp(),
-        fileName: selectedFile?.name,
-        filePath: uploadedPath,
-        result: result,
-      });
-
-      await loadRecentJobs();
       
+      console.log('Scan Result:', result);
+      setScanResult(result); // Store the full result {success: ..., result: ...}
+
     } catch (error: any) {
       console.error('Scan failed:', error);
-      alert(`Scan failed: ${error.message}`);
+      setScanResult({ error: error.message }); // Store error in the same state
     } finally {
       setIsScanning(false);
     }
@@ -225,11 +104,6 @@ function DashboardContent() {
     }
   };
 
-  const handleSignOut = async () => {
-    await firebaseSignOut();
-    router.push('/');
-  };
-
   return (
     <div style={styles.container}>
       <div style={styles.bgGlow1} />
@@ -238,30 +112,18 @@ function DashboardContent() {
       <nav style={styles.nav}>
         <div style={styles.navContent}>
           <div style={styles.logo} onClick={() => router.push('/')}>
+            <div style={styles.logoIconWrapper}>
+              <div style={styles.logoIconGlow} />
+            </div>
             <span style={styles.logoText}>
               Sentra<span style={styles.logoGradient}>Sec</span>
             </span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div style={styles.userInfo}>
-              {user?.photoURL && (
-                <img 
-                  src={user.photoURL} 
-                  alt={user.displayName || 'User'} 
-                  style={styles.userAvatar}
-                />
-              )}
-              <span style={styles.userName}>{user?.displayName || user?.email}</span>
+          <div style={styles.userIcon}>
+            <div style={styles.userIconGlow} />
+            <div style={styles.userIconInner}>
+              <User style={{ width: '24px', height: '24px', color: 'white' }} />
             </div>
-            <button 
-              onClick={handleSignOut}
-              style={styles.signOutButton}
-              onMouseEnter={(e) => e.currentTarget.style.borderColor = '#6A00EB'}
-              onMouseLeave={(e) => e.currentTarget.style.borderColor = 'rgba(92, 0, 204, 0.3)'}
-            >
-              <LogOut style={{ width: '18px', height: '18px' }} />
-              Sign Out
-            </button>
           </div>
         </div>
       </nav>
@@ -278,9 +140,8 @@ function DashboardContent() {
               key={tool.id}
               onClick={() => {
                 setActiveScan(tool.id);
-                setScanResult(null);
-                setScanInput('');
-                setSelectedFile(null);
+                setScanResult(null); 
+                setScanInput(''); 
               }}
               style={styles.toolCard}
               onMouseEnter={(e) => {
@@ -317,43 +178,39 @@ function DashboardContent() {
           </h2>
           
           <div style={styles.scansList}>
-            {recentJobs.length === 0 ? (
-              <p style={styles.noScans}>No scans yet. Start by selecting a tool above!</p>
-            ) : (
-              recentJobs.map((job) => (
-                <div 
-                  key={job.id} 
-                  style={styles.scanCard}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = '#5C00CC';
-                    e.currentTarget.style.boxShadow = '0 0 30px rgba(92, 0, 204, 0.2)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = '#2A252F';
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                >
-                  <div style={styles.scanCardContent}>
-                    <div style={styles.scanCardLeft}>
-                      <div style={job.status === 'safe' ? styles.scanIconSafe : styles.scanIconWarning}>
-                        {job.status === 'safe' ? (
-                          <CheckCircle style={{ width: '28px', height: '28px', color: '#4ade80' }} />
-                        ) : (
-                          <AlertTriangle style={{ width: '28px', height: '28px', color: '#facc15' }} />
-                        )}
-                      </div>
-                      <div>
-                        <p style={styles.scanType}>{job.fileName || `${job.type} Scan`}</p>
-                        <p style={styles.scanTime}>{job.timestamp}</p>
-                      </div>
+            {mockJobs.map((job) => (
+              <div 
+                key={job.id} 
+                style={styles.scanCard}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = '#5C00CC';
+                  e.currentTarget.style.boxShadow = '0 0 30px rgba(92, 0, 204, 0.2)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = '#2A252F';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+              >
+                <div style={styles.scanCardContent}>
+                  <div style={styles.scanCardLeft}>
+                    <div style={job.status === 'safe' ? styles.scanIconSafe : styles.scanIconWarning}>
+                      {job.status === 'safe' ? (
+                        <CheckCircle style={{ width: '28px', height: '28px', color: '#4ade80' }} />
+                      ) : (
+                        <AlertTriangle style={{ width: '28px', height: '28px', color: '#facc15' }} />
+                      )}
                     </div>
-                    <div style={job.status === 'safe' ? styles.confidenceBadgeSafe : styles.confidenceBadgeWarning}>
-                      {job.confidence}% Confidence
+                    <div>
+                      <p style={styles.scanType}>{job.type} Scan</p>
+                      <p style={styles.scanTime}>{job.timestamp}</p>
                     </div>
                   </div>
+                  <div style={job.status === 'safe' ? styles.confidenceBadgeSafe : styles.confidenceBadgeWarning}>
+                    {job.confidence}% Confidence
+                  </div>
                 </div>
-              ))
-            )}
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -376,35 +233,24 @@ function DashboardContent() {
             </div>
             
             <div style={styles.modalBody}>
-              <label style={styles.fileLabel}>
-                <Upload style={{ width: '20px', height: '20px' }} />
-                {selectedFile ? selectedFile.name : 'Upload File (Optional)'}
-                <input
-                  type="file"
-                  onChange={handleFileSelect}
-                  style={{ display: 'none' }}
-                  accept=".txt,.json,.js,.ts,.py,.java,.cpp,.c,.yaml,.yml,.xml,.html,.css"
-                />
-              </label>
-              
               <textarea
                 value={scanInput}
                 onChange={(e) => setScanInput(e.target.value)}
                 placeholder={getPlaceholder(activeScan)}
                 style={styles.textarea}
-                disabled={isScanning}
+                disabled={isScanning} 
               />
               
               <button
                 onClick={handleScan}
-                disabled={!scanInput || isScanning || uploading}
+                disabled={!scanInput || isScanning}
                 style={{
                   ...styles.scanButton,
-                  opacity: !scanInput || isScanning || uploading ? 0.5 : 1,
-                  cursor: !scanInput || isScanning || uploading ? 'not-allowed' : 'pointer',
+                  opacity: !scanInput || isScanning ? 0.5 : 1,
+                  cursor: !scanInput || isScanning ? 'not-allowed' : 'pointer',
                 }}
                 onMouseEnter={(e) => {
-                  if (!(!scanInput || isScanning || uploading)) {
+                  if (!(!scanInput || isScanning)) {
                     e.currentTarget.style.boxShadow = '0 0 40px rgba(106, 0, 235, 0.5)';
                   }
                 }}
@@ -412,12 +258,7 @@ function DashboardContent() {
                   e.currentTarget.style.boxShadow = 'none';
                 }}
               >
-                {uploading ? (
-                  <>
-                    <div style={styles.spinner} />
-                    Uploading...
-                  </>
-                ) : isScanning ? (
+                {isScanning ? (
                   <>
                     <div style={styles.spinner} />
                     Scanning...
@@ -430,14 +271,9 @@ function DashboardContent() {
                 )}
               </button>
 
-              {scanResult && (
-                <div style={styles.resultContainer}>
-                  <h3 style={styles.resultTitle}>Scan Results</h3>
-                  <pre style={styles.resultPre}>
-                    {JSON.stringify(scanResult, null, 2)}
-                  </pre>
-                </div>
-              )}
+              {/* MODIFICATION: Replaced the <pre> tag with our new component */}
+              <ScanResultDisplay scanResult={scanResult} />
+              
             </div>
           </div>
         </div>
@@ -502,6 +338,26 @@ const styles: { [key: string]: React.CSSProperties } = {
     gap: '12px',
     cursor: 'pointer',
   },
+  logoIconWrapper: {
+    position: 'relative',
+  },
+  logoIconGlow: {
+    position: 'absolute',
+    inset: 0,
+    background: 'linear-gradient(135deg, #5C00CC, #6A00EB)',
+    filter: 'blur(16px)',
+    opacity: 0.5,
+  },
+  logoIcon: {
+    position: 'relative',
+    width: '48px',
+    height: '48px',
+    background: 'linear-gradient(135deg, #5C00CC, #6A00EB)',
+    borderRadius: '12px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   logoText: {
     fontSize: '24px',
     fontFamily: '"Dela Gothic One", cursive',
@@ -512,36 +368,28 @@ const styles: { [key: string]: React.CSSProperties } = {
     WebkitTextFillColor: 'transparent',
     backgroundClip: 'text',
   },
-  userInfo: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-  },
-  userAvatar: {
-    width: '40px',
-    height: '40px',
-    borderRadius: '50%',
-    border: '2px solid #6A00EB',
-  },
-  userName: {
-    fontFamily: 'Arimo, sans-serif',
-    fontSize: '14px',
-    color: '#A8A5AB',
-  },
-  signOutButton: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    padding: '10px 20px',
-    background: '#2A252F',
-    border: '1px solid rgba(92, 0, 204, 0.3)',
-    borderRadius: '12px',
-    fontFamily: 'Arimo, sans-serif',
-    fontWeight: '600',
-    fontSize: '14px',
-    color: 'white',
+  userIcon: {
+    position: 'relative',
     cursor: 'pointer',
-    transition: 'all 0.3s ease',
+  },
+  userIconGlow: {
+    position: 'absolute',
+    inset: 0,
+    background: 'linear-gradient(135deg, #5C00CC, #6A00EB)',
+    filter: 'blur(12px)',
+    opacity: 0,
+    transition: 'opacity 0.3s ease',
+    borderRadius: '50%',
+  },
+  userIconInner: {
+    position: 'relative',
+    width: '44px',
+    height: '44px',
+    background: 'linear-gradient(135deg, #5C00CC, #6A00EB)',
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   main: {
     position: 'relative',
@@ -645,12 +493,6 @@ const styles: { [key: string]: React.CSSProperties } = {
     flexDirection: 'column',
     gap: '16px',
   },
-  noScans: {
-    textAlign: 'center',
-    fontFamily: 'Arimo, sans-serif',
-    color: '#A8A5AB',
-    padding: '40px',
-  },
   scanCard: {
     padding: '24px',
     background: '#201A26',
@@ -737,7 +579,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     width: '100%',
     maxHeight: '90vh',
     overflow: 'hidden',
-    display: 'flex',
+    display: 'flex', 
     flexDirection: 'column',
   },
   modalHeader: {
@@ -771,19 +613,6 @@ const styles: { [key: string]: React.CSSProperties } = {
     flexDirection: 'column',
     gap: '24px',
     overflowY: 'auto',
-  },
-  fileLabel: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-    padding: '16px',
-    background: '#2A252F',
-    border: '2px dashed rgba(92, 0, 204, 0.5)',
-    borderRadius: '12px',
-    fontFamily: 'Arimo, sans-serif',
-    color: '#A8A5AB',
-    cursor: 'pointer',
-    transition: 'all 0.3s ease',
   },
   textarea: {
     width: '100%',
@@ -822,25 +651,10 @@ const styles: { [key: string]: React.CSSProperties } = {
     borderRadius: '50%',
     animation: 'spin 1s linear infinite',
   },
-  resultContainer: {
-    maxHeight: '300px',
-    overflowY: 'auto',
-    background: '#0C0712',
-    padding: '20px',
-    borderRadius: '12px',
-    border: '1px solid #2A252F',
-  },
-  resultTitle: {
-    fontFamily: '"Dela Gothic One", cursive',
-    fontSize: '20px',
-    color: 'white',
-    marginBottom: '12px',
-  },
-  resultPre: {
-    whiteSpace: 'pre-wrap',
-    wordBreak: 'break-all',
+  modalNote: {
+    fontSize: '14px',
+    fontFamily: 'Arimo, sans-serif',
     color: '#A8A5AB',
-    fontSize: '12px',
-    fontFamily: 'monospace',
+    textAlign: 'center',
   },
 };
