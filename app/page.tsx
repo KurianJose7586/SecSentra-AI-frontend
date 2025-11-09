@@ -2,11 +2,20 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Shield, Lock, Code, ArrowRight, Sparkles } from 'lucide-react';
+import { Shield, Lock, Code, ArrowRight, Sparkles, LogIn } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function LandingPage() {
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const { user, signInWithGoogle, loading } = useAuth();
+  const [signingIn, setSigningIn] = useState(false);
+
+  useEffect(() => {
+    if (user && !loading) {
+      router.push('/dashboard');
+    }
+  }, [user, loading, router]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -19,7 +28,7 @@ export default function LandingPage() {
     let particles: Particle[] = [];
 
     const resizeCanvas = () => {
-      if (!canvas) return; // Add a check here
+      if (!canvas) return;
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
     };
@@ -103,12 +112,19 @@ export default function LandingPage() {
     };
   }, []);
 
+  const handleGetStarted = async () => {
+    setSigningIn(true);
+    try {
+      await signInWithGoogle();
+    } catch (error) {
+      console.error('Sign in error:', error);
+      setSigningIn(false);
+    }
+  };
+
   return (
     <div style={styles.container}>
-      <canvas
-        ref={canvasRef}
-        style={styles.canvas}
-      />
+      <canvas ref={canvasRef} style={styles.canvas} />
 
       <nav style={styles.nav}>
         <div style={styles.navContent}>
@@ -120,12 +136,29 @@ export default function LandingPage() {
             </div>
 
             <button 
-              onClick={() => router.push('/dashboard')}
-              style={styles.ctaButton}
-              onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+              onClick={handleGetStarted}
+              disabled={signingIn || loading}
+              style={{
+                ...styles.ctaButton,
+                opacity: signingIn || loading ? 0.6 : 1,
+                cursor: signingIn || loading ? 'not-allowed' : 'pointer',
+              }}
+              onMouseEnter={(e) => {
+                if (!signingIn && !loading) e.currentTarget.style.transform = 'scale(1.05)';
+              }}
               onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
             >
-              Get Started
+              {signingIn ? (
+                <>
+                  <div style={styles.spinner} />
+                  Signing In...
+                </>
+              ) : (
+                <>
+                  <LogIn style={{ width: '18px', height: '18px' }} />
+                  Get Started
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -151,19 +184,35 @@ export default function LandingPage() {
 
             <div style={styles.buttonGroup}>
               <button 
-                onClick={() => router.push('/dashboard')}
-                style={styles.primaryButton}
+                onClick={handleGetStarted}
+                disabled={signingIn || loading}
+                style={{
+                  ...styles.primaryButton,
+                  opacity: signingIn || loading ? 0.6 : 1,
+                  cursor: signingIn || loading ? 'not-allowed' : 'pointer',
+                }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'scale(1.05)';
-                  e.currentTarget.style.boxShadow = '0 0 50px rgba(106, 0, 235, 0.8)';
+                  if (!signingIn && !loading) {
+                    e.currentTarget.style.transform = 'scale(1.05)';
+                    e.currentTarget.style.boxShadow = '0 0 50px rgba(106, 0, 235, 0.8)';
+                  }
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.transform = 'scale(1)';
                   e.currentTarget.style.boxShadow = '0 0 20px rgba(92, 0, 204, 0.5)';
                 }}
               >
-                Start Scanning
-                <ArrowRight style={{ width: '20px', height: '20px', marginLeft: '8px' }} />
+                {signingIn ? (
+                  <>
+                    <div style={styles.spinner} />
+                    Signing In...
+                  </>
+                ) : (
+                  <>
+                    Start Scanning
+                    <ArrowRight style={{ width: '20px', height: '20px', marginLeft: '8px' }} />
+                  </>
+                )}
               </button>
               
               <button 
@@ -301,6 +350,18 @@ const styles: { [key: string]: React.CSSProperties } = {
     transition: 'all 0.3s ease',
     boxShadow: '0 0 20px rgba(92, 0, 204, 0.5)',
     color: 'white',
+    border: 'none',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  spinner: {
+    width: '18px',
+    height: '18px',
+    border: '2px solid white',
+    borderTopColor: 'transparent',
+    borderRadius: '50%',
+    animation: 'spin 1s linear infinite',
   },
   main: {
     position: 'relative',
@@ -385,6 +446,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     transition: 'all 0.3s ease',
     boxShadow: '0 0 20px rgba(92, 0, 204, 0.5)',
     color: 'white',
+    border: 'none',
   },
   secondaryButton: {
     padding: '20px 40px',
